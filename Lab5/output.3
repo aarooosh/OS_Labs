@@ -1,0 +1,33 @@
+spawn telnet localhost 3456
+Trying ::1...
+Trying 127.0.0.1...
+Connected to localhost.
+Escape character is '^]'.
+==== m5 terminal: Terminal 0 ====
+            Starting IITK gemOS ......
+Initial Segment Map: cs = 0x8 ds = 0x10 ss = 0x10
+ESP=0x1140F8 EBP=0x114158
+cr0=0xE0000011 cr3=0x70000 cr4=0x20
+Initializing memory
+base = 0x0 limit low = 0x0 high=0x0 ac_byte = 0x0 flags=0x0
+base = 0x0 limit low = 0xFFFF high=0xF ac_byte = 0x9A flags=0xA
+base = 0x0 limit low = 0xFFFF high=0xF ac_byte = 0x92 flags=0xE
+base = 0x0 limit low = 0xFFFF high=0xF ac_byte = 0x8B flags=0xA
+Initializing user segments
+Initializing APIC
+APIC Base address = 0xFEE00000
+GemOS# init
+Setting up init process ...
+Page table setup done, launching init ...
+Before:
+[0x180201000 - 0x180202000] perm: RW_
+[0x180202000 - 0x180203000] perm: RWX
+[0x180203000 - 0x180204000] perm: RW_
+[0x180204000 - 0x180205000] perm: RWX
+After:
+[0x180201000 - 0x180202000] perm: RW_
+[0x180202000 - 0x180203000] perm: RWX
+[0x180203000 - 0x180204000] perm: RW_
+Testcase passed
+GemOS# exit
+Connection closed by foreign host.
