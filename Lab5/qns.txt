@@ -1,0 +1,40 @@
+Part1
+------
+
+Q1. Observe the PCB address of the processes for the provided test case #1. Compare that to any of the addresses in the user space and note down the differences.
+A1. The PCB addresses, are probably in the OS Address space, and hence when we print it we get pcb@0x0020862C0, comparing that to 0x7FFFFFB98, which is much much lower in the user address space in the stack.
+ 
+Q2. Observe the output for the provided testcase#3 and match the child-parent relationship with the code logic.
+A2. The while loop runs twice, in each iteration, the child prints it's pid and ppid and sleeps for a long time before exiting, while the parent was sleeping for a shorter time, and the parent prints its information.
+We can observe that in 
+"pid 2 ppid 1 pcb@0x2086580 name init 
+pid 1 ppid 0 pcb@0x20862C0 name init"
+where the child prints first, having a ppid>0, which is 1 and then the parent prints with the same pid and ppid=0.
+While this child is still sleeping, the while loop executes again and a new child is created, and we go through the same process again, just giving the nnew child process a pid of 3(different from the earlier child).
+"pid 3 ppid 1 pcb@0x2086840 name init
+pid 1 ppid 0 pcb@0x20862C0 name init"
+
+Part 2
+------
+Q1. Observe the output for the provided testcase #4. How many FDs correspond to pipes and what are their access permissions?
+A1. We can see that 2 FDs are open with file_type to be pipe, one of their modes is 0x1(which means read) and another is 0x2(which means write). 
+
+Part 3
+-----
+
+Q1. Observe the stack segment information for testcase#2 and reason about it.
+
+A1. Our best guess is, expand() expands the data segment by 2 pages. Along with that "buf-8192" and the allocation to that position makes the stack grows upwards by 2 pages, its next_free(head) goes from 0x7FFFFF000 to 0x7FFFFD000, essentially "decreasing" by 2 pages.
+
+Part 4
+------
+
+Q1. Why is the number of VM areas less than the number of mmap calls for testcase#4? 
+
+Q2. Why it is not so for testcase #3.
+
+A1. The four mmap calls in the fourth test case have the entirely permissions and are being contiguouysly allocated which leads to the OS
+	grouping these into one single region , using one single mmap. Hence only one contiguous virtual memory area is used , despite there being four
+	MMAP calls , leading to the lesser number.
+
+A2. This doesn't happen in testcase 3 as the permissions for the regions are different and hence cannot be grouped into a single virtual memory area
