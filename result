@@ -1,0 +1,36 @@
+Stage 1: Performing sanity checking
+Stage 2: Performing Evaluation
+
+
+***** Q1 *****
+===========================================
+Executing testcase #1 passed
+Executing testcase #2 passed
+Executing testcase #3 passed
+Executing testcase #4 passed
+Executing testcase #5 passed
+Executing testcase #6 passed
+Executing testcase #7 passed
+Executing testcase #8 passed
+Executing testcase #9 passed
+Executing testcase #10 passed
+===========================================
+Passed 10/10 testcases
+Marks obtained: 60/60
+
+
+***** Q2 *****
+===========================================
+Executing testcase #1 passed
+Executing testcase #2 passed
+Executing testcase #3 passed
+Executing testcase #4 passed
+Executing testcase #5 passed
+===========================================
+Passed 5/5 testcases
+Marks obtained: 40/40
+
+------------------------------------------------
+Total Marks obtained: 100/100
+------------------------------------------------
+2ce03e5d18ac9159fad59704dbc35029  result

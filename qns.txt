@@ -1,0 +1,27 @@
+Part 1
+------
+Q1. Briefly explain your implementation logic to handle wrap-around in the trace buffer.
+
+A1. 1) writing : while writing to the buffer , we ensured to wrap around to zero if it tried to exceed the end capacity and also made sure that it never exceeded the read pointer
+2) reading : similarly with reading
+3) Empty flags : we added a f;lag to check if in the course of reading (the yikes flag), the read and write pointer become equal , implying that it is indeed empty , as it could be equal if the buffer is entirely full as well
+
+Q2. Can a write to trace buffer return 0 even if we pass non-zero size to the system call? Why or Why not?
+
+A2. Yes , if the trace buffer is full , it is possible that zero bytes are writtn to the trace buffer hence returning zero
+
+Q3. Explain the expected behavior of testcase9.c.  
+
+A3. We have the max open files as defined to be 32, so they move from 0,1,2 which are standard fds then there are 29 free fds, for the creation in testcase9.c, we won't be able to create 30th fds, which is fd[29], and then we close of the first of the created trace buffer, fd[0]. So we allot the third spot in the fd table.
+
+Part 2
+------
+Q1. In testcase3.c, what address `caddr' represent? How it is formulated in the user space?
+
+A1. It very rightly said by the c in starting, represents the code address. In the function get my code address some variable is declared, and then we are taking the address of that variable which will be in the stack, and moving below by 16 bytes, which takes us two positions below in the stack, which is the instruction return address of the callee function, which would be in the code segment.
+
+(We messed up and were checking from just start to the end, rather than next free, due to which our code was failing, hinting at it not lying in the stack.)
+
+Q2. How do you explain the invocation of tb_read() and tb_write() when a read/write syscall is performed?   
+
+A2. When the TB file object is created , we manually set the fops to our create tb_wriute,read etc. function pointers , as the read , write syscalls etc . always refer to the functions indicated in the file objetc's fops structure to execute. hence by manually setting them as function pointers (which have the same function signature hence it's safe to invoke) , they are invoked as the TB equivalents of the functions.
