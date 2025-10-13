@@ -13,10 +13,10 @@
 struct tb_info
 {
 	//Modify as per the need
-	char *buf;
-	int readp;
-	int writep;
-	int isEmpty;
+	char *buf; //this is the actual buffer which will store the data
+	int readp; //this stores the location to start reading from 
+	int writep;//this stores the location to start writing from
+	int isEmpty;//is a flag used to set if the buffer is empty
 };
 
 
