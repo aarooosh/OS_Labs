@@ -83,6 +83,8 @@ int do_div_by_zero(struct user_regs *regs)
 	else if(hconfig.cur_hack_config==DIV_ZERO_SKIP){
 		regs->entry_rip+=3;
 		//this is because the instruction consumed 3bytes (i guess this x86 64 has variable length instructions)
+		//note : the skipped instruction is immediate div (idiv) of rax/rcx but the values of rax and rcx have been
+		//populated in previous instructions ! so those don't change ! Be vigilant !
 //		printk("\nregs ka do_div_by_zero mai memory yeh hai: %x\n",regs);
 	}
 	else if(hconfig.cur_hack_config==DIV_ZERO_USH_EXIT){
