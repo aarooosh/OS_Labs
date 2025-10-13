@@ -1,0 +1,59 @@
+Part1  
+------
+
+Q1. If you manually run the testcase#1 without performing any modifications, the OS hangs. Explain why?
+
+A1: The OS handler for div by zero with this specific flag has not been implemented yet , hence the instruction pointer remains pointing to the incorrect instruction, and keeps looping while raising a fault returning to the same, then raising the fault again.... Hence afeter we implement a suitable handler, assigning the answer to be 0 and hence, it is not a problem, the div instruction is valid and the program moves on without any error.
+
+Q2. After building gemOS for testcase#1 (manually), run `objdump -D user/init.o`, examine the assembly for main to 
+    find the `idiv' instruction. Apart from the implicit "rax" register, which other register is used? 
+    Which registers is used as the numerator and which register as the denominator?
+
+A2: The other register used was the rcx register. The expression was of the form rax/rcx. 
+
+Part 2
+------
+
+Q1. After building gemOS for testcase#2 (manually), run `objdump -D user/init.o`, examine the assembly for main to 
+    find the `idiv' instruction. What is the length of the `idiv' instruction?
+
+A1: The length of the idiv instruction is 24 bits, or 3 bytes, and hence we are increasing the entry_rip by 3 bytes.
+
+Q2. Can we use the register over-writing strategy for testcase2? why or why not?
+
+A2: Whenever we run the division instruction corresponding to b/a, if incase we use register overwriting, we know that a(divisor) is for sure to be 0(before the div), both the dividend(b) and divisor(a) are lost, while if we skip just the div instruction, the information is still populated in the rax register, which is stored back into a. If we use register overwrite we would get a different output and lose information. 
+
+Q3. Which memory does the `regs' argument to do_div_by_zero (in hack.c) point to (hint: check the os_rsp value in exec_ctx)?
+
+A3: We print the relevant variables and get the values of, 
+
+os_rsp: 0x2093000
+
+regs inside the syscall_handler: 0x20863A8
+
+regs inside do_div_by_zero: 0x2092F60
+
+These show us that regs points to the location in the kernel stack, where during context switch the user registers were saved.
+//who calls do_div_by_zero
+
+Part 3
+------
+
+Q1. Why testcase#2 should show the output 'Error...exiting'
+
+A1. In the code:
+"        if(config_hack_semantics(DIV_ZERO_USH_EXIT, &a) == 0){
+                printf("testcase failed\n");
+                exit(0);
+        }
+", we are supposed to pass the address of the user handler function, which is supposed to be in the text segment, which we would have expected, but here we are passing the address of a declared lcoal variable, which is in the stack segment, and our valid address check flags this and gives an error.
+
+Part 4
+------
+Q1. What all registers are changed in do_div_by_zero and why?
+
+A1. We are changing 4 registers, we change rbp, so that we can get to the previous function's base pointer. We also change entry rip, such that it points to the callee function(from the RetAddr(func) stored in stack. Then we are changing rsp, to account for the new stack position after popping the above, and we also needed the return value of the called functionto be 1, hence we change rax to be 1.
+
+Q2. In testcase #4 and #5, how many times the 'fact' function would return one? 
+
+A2. There are 2 cases where 1 can be returned from the fact function, There is an erroneous output of 1, when a div by zero occurs, for all odd number greater than 1. The other case where 1 is returned is the base case when we reach 1. According to that logic, in testcase 4, 1 is returned 3 times for the numbers (1,3,5) and for testcase #5, 1 is returned 5 times for numbers (1,3,5,7,9).
