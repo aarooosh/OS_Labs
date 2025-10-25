@@ -133,41 +133,73 @@ struct exec_context *rr_pick_next_context(struct exec_context *ctx)
 
 int do_walk_pt(struct exec_context *ctx, unsigned long addr)
 {
-    u64 *vaddr_base = (u64 *)osmap(ctx->pgd);
-    /*TODO*/
+    
+    /*TODO
+	1. walk the page table while looking at which pages have been mapped
+	2. report what has been found so far
+
+	Note :  we'll have to convert everything to virtual address as we're going to have to 
+			dereference them in our OS code. Because only the hardware can access physical memory.
+			but how is this implemented ? because the osmap function which carries this out will have
+			to have info about any arbit virtual address
+	*/
+	//valid flag will ensure if we've reached a non allocated page in a previous level and tell us that no info available
+
+	u64 *vaddr_base = (u64 *)osmap(ctx->pgd);
     u64 valid=1;
-   // valid=(((u64)vaddr_base)&1); cheating a little assuming CR3 to valid hi hoga
-    u64 L1_entry=0, L2_entry=0, L3_entry=0, L4_entry=0;
-    if(valid){
-    	u64 L1_pfn=(u64)vaddr_base;//for now assuming this is page aligned, thisis cr3 and assuming that ismai se direct virtual addr milega, and * of this gives the entry itself
-	//so this is directly the address to the page table
-	u64 L1_offset=((addr & PGD_MASK) >> PGD_SHIFT);
-	//yeh to offset number hai, we need to multiply by size
+	u64 L1_entry=0, L2_entry=0, L3_entry=0, L4_entry=0;
 	
-	//aligning L1 pfn
-	//L1_pfn=(L1_pfn>>9)<<9;
+    //valid=(((u64)vaddr_base)&1); cheating a little assuming CR3 to valid hi hoga
+	//yes , ideally we should've perhaps checked for this but we'll assume that CR3 reg is always populated correctly with the
+	//page table translation stuff
+    
+    if(valid){
+		//for now assuming this is page aligned, thisis cr3 and assuming that ismai se direct virtual addr milega, and * of this gives the entry itself
+		//so this is directly the address to the page table
+		//yeh to offset number hai, we need to multiply by size
 
-	u64* L1_final_addr=(u64*)(L1_pfn+L1_offset*8);
-	//abb ismai kya hai woh dekhna hai na
+		//cast at u64 and extract offset
+    	u64 L1_pfn=(u64)vaddr_base;
+		u64 L1_offset=((addr & PGD_MASK) >> PGD_SHIFT);
+	
+		//FATAL ERROR !
+		// L1_pfn is the address of the L1 page table page ! it doesn't need alignment + the offset is meant to be added to 
+		// this address directly right !! It's not like there are flags that need to be removed !!
+		//aligning L1 pfn
+		//L1_pfn=(L1_pfn>>9)<<9;
 
-	L1_entry=*L1_final_addr;
-	//not too sure about L1-entry addr
-        if(L1_entry&1){vaddr_base = (u64 *)osmap(L1_entry>>12);//assuming this won't give us a faul
-	printk("L1-entry addr: %x, L1-entry contents: %x, PFN: %x, Flags: %x\n", L1_final_addr, L1_entry, (L1_entry>>12),(L1_entry&0xFFF));}
-	else{
-    	printk("No L1 entry\n");
-	valid = 0;
-    }
+		u64* L1_final_addr=(u64*)(L1_pfn+L1_offset*8);
+		//offset*8 is very important. remember , each (of the 512) entry of the page (4096B) table level is 8 bytes 
+		//access the value at L1_final_addr will give us the next level's physical address + flags
+		L1_entry=*L1_final_addr;
+	
+        if(L1_entry&1){
+			//12 bits of flags
+			vaddr_base = (u64 *)osmap(L1_entry>>12);
+			printk("L1-entry addr: %x, L1-entry contents: %x, PFN: %x, Flags: %x\n", L1_final_addr, L1_entry, (L1_entry>>12),(L1_entry&0xFFF));
+		}
+		
+		else{
+			//if the value at the L1_final_addr has an invalid present bit , i guess we're saying that no L1 entry exists
+			//as everything onwards is wrong
+    		printk("No L1 entry\n");
+			valid = 0;
+    	}
     }
     else{
+		//this is if valid itself is false
+		//i think the valid is set for itself , not the subsequent levels actually
     	printk("No L1 entry\n");
     }
 
+	//this same structure is used for all four levels of the page table
+	
     //LEVEL 2
     /*TODO*/
     valid=L1_entry&1&valid;
-  	//We need to also semantically add & invalid here for the previous entry, but since all these variables are set to 0 unless valid, we don't need to worry about it
-    if(valid){
+	//L1_entry&1 checks if the value in the L1 level had a valid flag or no
+	//& with valid in case previous steps were invalid
+  	if(valid){
 	    u64 L2_pfn=(u64)vaddr_base;
 	    u64 L2_offset=((addr & PUD_MASK) >> PUD_SHIFT);
 	
