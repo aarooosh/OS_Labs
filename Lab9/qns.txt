@@ -1,0 +1,41 @@
+Part1
+-----
+
+Q1. In testcase1.c, how many times the swapper process got scheduled?
+
+A1. The swapper process is scheduled 10 + 1(after all the processes gets over) times. We would guess that the round robin time delta is 1 second, as the sleep is called for 10 seconds which resulted into 10 times of swapper process being scheduled.
+
+Q2. In testcase3.c, how many times the swapper process is scheduled and why?
+
+A2. Here it was scheduled 7 + 1(after exit) times, as we also have three forked processes, and the system may have scheduled them and once they are over, and our main is still sleeping, the swapper is scheduled. (It's also possible that the child processes didn't called schedule_yield, and hence they took the entire time delta of 1 second, and hence they took up 3 seconds)
+
+Q3. In testcase5.c, how many times the sum value was less than 10 and why?    
+A3. Here we have 3 consecutive forks, which results into 8 different processes. The sum was printed to be 4, 2 times, as let's say the 4th process runs and exits while the subsequent children processes haven't even had the chance to perform the last fork. Then the pid occupied by the 4th process is now free and hence the next fork would occupy it, giving it the same print statement again.
+
+Part 2
+------
+
+Q1. In testcase1.c, in which level the page table entries for the two addresses
+for which walk_pt is called diverse and why?
+
+A1. The Level 1 page is coming from CR3, that would be the same for everyone, the PTEs differ here in L2 page, as their offset is different.  
+
+Q2. In testcase2.c, reason about the page table entries at different levels for 
+(ptr+4096) across different invocation of walk_pt. Specifically, differentiate
+the entries w.r.t. the entries corresponding to (ptr)
+
+A2. PTEs are only given when we access or modify the allocated memory, hence for the first two times walk_ptr() is called, none of it is allocated in physical memory and hence we don't have entries. When we do *ptr='c', our first page is allocated, and afterwards both the pages ae allocated.
+
+Q3. Explain the gemOS physical memory allocation logic for the user stack
+    region by examining the o/p of testcase4.c.
+
+A3. Stack doesn't have a next free, so the next logical choice would be to allocate the stack continously, even if a value, that is 2 pages 'above' is accessed. Hence when we modify p-8192 we end up allocating p-4096 as well. 
+
+Q4. In testcase5.c, the PFN used to maintain L4 page table for the two addresses
+    are same. (True/False) with justification.
+
+A4. False. The second mmap call uses (i.e. doesn't ignore) the twoM address hint , causing the two physical entries to be separated by two million , leading it to be separate at the L4 PFN entry value 
+
+Q5. Which bit is used to maintain the `write' permission for a page? Justify. 
+A5. third bit , because the flags 0x19 and 0x11 differ by 8.
+      
