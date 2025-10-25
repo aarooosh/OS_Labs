@@ -7,23 +7,35 @@
 //////////////////////  Q1: RR Scheduling   ///////////////////////////////////////
 //args:
 //      ctx: new exec_context to be added in the linked list
+//		the time delta check to call this scheduler process is apparently already dealt with
+//		as the goal of this question is just to manipulate the linked list of processes that 
+//		are ready/running
+//
+//		also remember that \n after prints is always a good idea as it forces flushing of the print buffer
+
 void rr_add_context(struct exec_context *ctx)
 {
       /*TODO*/
-	//add context if its null
+	
 	struct exec_context *curr=rr_list_head;
 	if(curr==NULL){
-		rr_list_head=ctx;//confusion, would curr=ctx work? or *'s both side 
-			   //safest is rr_list_head=ctx
+		//i.e. no process is ready/running , perhaps when OS boots up ?
+		//ctx is the incoming process that has been scheduled , so if NULL directly point to 
+		//ctx. We also force ctx.next = NULL because we're the ones dealing with the linked list logic
+		//and as long as we account for this in later steps , we should be good
+		//i.e. this is not 'losing' information as such
+		rr_list_head=ctx;
 		ctx->next=NULL;
+		//returning as the shceduler functionality is done
 		return;
 	}
+	//if not NULL loop till the end , find the last process and then add this new one to the tail
 	while(curr->next!=NULL){
 		curr=curr->next;
 	}
 	ctx->next=NULL;
 	curr->next=ctx;
-//not circling back to head, keep this in mind
+	//this concludes all cases for add schedule
 	return;
 }
 
@@ -32,43 +44,75 @@ void rr_add_context(struct exec_context *ctx)
 void rr_remove_context(struct exec_context *ctx)
 {
       /*TODO*/
+	//note : don't set next to NULL while processing here , as pick next is called 
+	//		 implicitly after this (already implemented) and hence if set to NULL 
+	//		 it will fail to pick the next process.
+
+	//idea is to just skip the node in the linked list
+	//caveats : moving the rr_list_head pointer when needed
+	//			when the only process in the linked list is removed , set head to NULL
+	//			normal case skipping , but checking by pid to be safe
+	
 	struct exec_context *curr=rr_list_head;
-	//direct equate kar sakte hai, ya should we check by  pid, this is safer hence doing this
-	//very smar tfigure out by lord aarush: we also have to update rr_list_head if wohi remove kar rahe hai 
+	
+	//ideally we can directly check pointer equality as i don't think multiple copies of PCB will ever be stored
+	//but perhaps a safer way to go about it is using pid checking
+	
+	//to clarify : the below if is for the case where the process to be removed is the one pointed to by rr_list_head
+	//			   as we'd have to change the rr_list_head pointer as well.
 	if(rr_list_head->pid==ctx->pid){
 		rr_list_head=rr_list_head->next;
 		return;
 	}
-	if(rr_list_head->next==NULL){//considering valid calls only
-				  
+
+	//i feel this bit of code is redundant (not sure why we did it in the lab)
+	//this only enters the if block if rr_list_head is the only process left 
+	//in the linked list , and the fact that remove is called implies that it is
+	//the one being removed. But the above if block already catches this , so i'm
+	//not sure what new is being caught by this block
+
+	if(rr_list_head->next==NULL){	  
 		rr_list_head=NULL;
 		return;
 	}
+
+	//normal skipping stuff , looking one node ahead (->next) because we want both the previous and next node
+	//to implement the skipping logic
+	
 	while((curr->next)->pid!=ctx->pid){
 		curr=curr->next;
 	}
 	curr->next=(curr->next)->next;
-
-      return;
+	return;
 }
 
 //args:
 //      ctx: exec_context corresponding the currently running process
 struct exec_context *rr_pick_next_context(struct exec_context *ctx)
 {
-    /*TODO*/
-
+    /*TODO
+	1. if empty schedule swapper
+	2. if end of list pick the head
+	3. normal case just choose the next process
+	*/
+	
 	if(rr_list_head==NULL){
-	//if empty, if head = null, and swapper hi wapas dedo, hence below function is usefull
+	// head being NULL implies no process and pick next process should pick the swapper/idle/pid(0) process
+	//below print statement helped us figure out qns.txt
 	//	printk("Swapper Process Got Scheduled\n");
 		return get_ctx_by_pid(0);	
 	}
 	struct exec_context *coming=ctx->next;
 	if(coming==NULL){
-		//what does start looking for process from the head
+		//if next process is NULL pick the head process
+		//this is safe because if only one process exists in the LL
+		//rr_list_head still points to this , so it picks the same
+		//process safely
+		// remember ctx (and this whole function is called by) the outgoing process
 		return rr_list_head;
 	}
 	else{
+		//normal case just return next
 		return coming;
 	}
 
@@ -76,6 +120,7 @@ struct exec_context *rr_pick_next_context(struct exec_context *ctx)
 	//then rr_list head dekho, if same then only one, reschedule
 
 	//swapper mai if pid=0, pick the head, if the head is empty return ccurrent
+	//i think the below return is also redundant
      return get_ctx_by_pid(0);
 }
 
