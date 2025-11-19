@@ -372,6 +372,7 @@ long handle_cow_fault(struct exec_context *current, u64 vaddr, int access_flags)
 			u64* old_base = (u64 *)osmap((old_entry>>12));
 			u64* new_base = (u64 *)osmap((parent_entry>>12));
 			memcpy(new_base,old_base,4096);
+			invlpg(old_entry>>12);
 		}
 		put_pfn((old_entry>>12));
 		
