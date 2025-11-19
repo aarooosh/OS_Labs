@@ -76,7 +76,7 @@ int create_tree_entry(struct exec_context* ctx, struct exec_context* new_ctx, u6
 	
 	
 	//parent page itself didn't exist, woh lazy allocation bs, so aage badhne ki hi zarurat nahi
-/* ################################################# FATAL ERROR (1) #################################################*/
+/* ################################################# FATAL ERROR (2) #################################################*/
 
 	//CORRECTED:
 		if((parent_entry%2==0)){
@@ -149,35 +149,37 @@ int create_tree_entry(struct exec_context* ctx, struct exec_context* new_ctx, u6
 	child_base=(u64 *)osmap((child_entry>>12));
 	
 
-//	printk("PMD Parent: %x, Child: %x\n", parent_base, child_base);
 	//FOURTH LEVEL
 	//don't check for the last level, direct pte same and modify
-	int level_4_offset=8*((curr&L4_MASK)>>L4_SHIFT);
-
-//	parent_entry=*(parent_base+level_4_offset);
-//	parent_base=(u64 *)osmap((parent_entry>>12)<<12);
-
-//	child_entry=*(child_base+level_3_offset);
-//	child_base=(u64 *)osmap((child_entry>>12)<<12);
-
-
+	int level_4_offset=((curr&L4_MASK)>>L4_SHIFT);
 	
+/* ################################################# DEBUG PRINTS #################################################*/
+	//	parent_entry=*(parent_base+level_4_offset);
+	//	parent_base=(u64 *)osmap((parent_entry>>12)<<12);
+	//	child_entry=*(child_base+level_3_offset);
+	//	child_base=(u64 *)osmap((child_entry>>12)<<12);
+
 	u64* parent_entry_pointer =parent_base+level_4_offset;
 	u64* child_entry_pointer =child_base+level_4_offset;
+	//These are already virtual addresses !
 
 	if(*parent_entry_pointer%2!=0){
-		*parent_entry_pointer=*parent_entry_pointer&(0xFFFFFFFFFFFFFFFB);//xor it and turn the first bit 0
+/* ################################################# FATAL ERROR (3) #################################################*/
+		//CORRECTED:
+			*parent_entry_pointer=*parent_entry_pointer&(0xFFFFFFFFFFFFFFF7);
+		//INCORRECT:
+			*parent_entry_pointer=*parent_entry_pointer&(0xFFFFFFFFFFFFFFFB);//xor it and turn the first bit 0
+			//this was the wrong mask you doofus !!!!
+
+		//pointing the child entry to the parent entry (physical)
 		*(child_entry_pointer)=*parent_entry_pointer;
+		//making sure to update refcount
 		get_pfn(((*parent_entry_pointer)>>12));
-	//	printk("pareent entry : %x child entry = %x \n",*parent_entry_pointer,*child_entry_pointer);
 	}
 	else{
 	//	printk("las page not present\n");
 		return 0;
 	}
-
-
-
 	return 0;
 }
 
@@ -190,62 +192,91 @@ long do_cfork(){
      * */   
      /*--------------------- Your code [start]---------------*/
      
-    	u32 new_pid=new_ctx->pid;
+    u32 new_pid=new_ctx->pid;
 	*new_ctx=*ctx;
 	new_ctx->ppid=ctx->pid;
 	new_ctx->pid=new_pid;
 	new_ctx->pgd=os_pfn_alloc(OS_PT_REG);
-//	printk("copied pids and PGD\n");
 	pid = new_pid;
 	new_ctx->regs.rax = 0;
 	ctx->regs.rax = pid;
-	//Creating a new tree
+
+	//finished copying all basic fields from parent to child contexts
+	//now creating a new tree
 	//for code, rodata, data segs
 	u64 start,end;
-	for(int i=0;i<MAX_MM_SEGS-1;i++){
-		start=ctx->mms[i].start;
-		end=ctx->mms[i].next_free;
-//		printk("mms start:%x, end: %x\n", start, end);
-		while(start<end){
-			int if_okay=create_tree_entry(ctx, new_ctx, start);
-			start+=4096;
-		}
-	}
-	start=ctx->mms[MAX_MM_SEGS-1].start;
-	end=ctx->mms[MAX_MM_SEGS-1].end;
-	if(start>end){
-			while(start>end){
-			int if_okay=create_tree_entry(ctx, new_ctx, start);
-			//	printk("mms start:%x, end: %x create_tree succeeded ? : %x\n", start, end,if_okay);
-			start-=4096;
-		}
-	}
+/* ################################################# FATAL ERROR (4) #################################################*/
+	//CORRECTED:
+		for(int i=0;i<MAX_MM_SEGS-1;i++){
+				start=ctx->mms[i].start;
+				if(i == MM_SEG_STACK){
+					end = ctx->mms[i].end;
+				}
+				else{
+					end=ctx->mms[i].next_free;
+				}
+				while(start<end){
+					int if_okay=create_tree_entry(ctx, new_ctx, start);
+					start+=4096;
+				}
+			}
 
-	else{
-		while(start<end){
-			int if_okay=create_tree_entry(ctx, new_ctx, start);
-			//	printk("mms start:%x, end: %x create_tree succeeded ? : %x\n", start, end,if_okay);
-			start+=4096;
-		}
+	//INCORRECT: we had bungled up the stack start and end stuff
+		// for(int i=0;i<MAX_MM_SEGS-1;i++){
+		// 	start=ctx->mms[i].start;
+		// 	end=ctx->mms[i].next_free;
+		// 	while(start<end){
+		// 		int if_okay=create_tree_entry(ctx, new_ctx, start);
+		// 		start+=4096;
+		// 	}
+		// }
+		// start=ctx->mms[MAX_MM_SEGS-1].start;
+		// end=ctx->mms[MAX_MM_SEGS-1].end;
+		// if(start>end){
+		// 		while(start>end){
+		// 		int if_okay=create_tree_entry(ctx, new_ctx, start);
+		// 		//	printk("mms start:%x, end: %x create_tree succeeded ? : %x\n", start, end,if_okay);
+		// 		start-=4096;
+		// 	}
+		// }
+	
+		// else{
+		// 	while(start<end){
+		// 		int if_okay=create_tree_entry(ctx, new_ctx, start);
+		// 		//	printk("mms start:%x, end: %x create_tree succeeded ? : %x\n", start, end,if_okay);
+		// 		start+=4096;
+		// 	}
+		// }
 
-	}
+
 //VMAREADEEPCOPYNAHIKIYA!..
 	
 	struct vm_area* head=ctx->vm_area;
+	
+/* ################################################# FATAL ERROR (5) #################################################*/
+	if(head == NULL){
+		new_ctx->vm_area = NULL;
+		goto skip;
+	}
+	//we'd forgot to check if head = NULL 
+
+	//traverse and create tree entries in the child
 	struct vm_area* new_head=os_alloc(sizeof(struct vm_area));
 	struct vm_area* yummy = new_head;
+	//new_head will be the traversing pointer , yummy will stay at the head point
 	new_ctx->vm_area = yummy;
 	while(head!=NULL){
 		start=head->vm_start;
 		end=head->vm_end;
 		while(start<end){
 			int if_okay=create_tree_entry(ctx,new_ctx,start);
-			start+=4096;
+			start+=4096;//move page by page ! crucial catch by Shrey
 	//		printk("tehelka omlette mms start:%x, end: %x create tree succeeded ? %x\n", start, end,if_okay);
 		}
 		head=head->vm_next;
 	}
 
+	//initialise the child VMAs to our newly traversed/created tree
 	head = ctx->vm_area;
 	while(head!=NULL){
 		//struct vm_area *vm = os_alloc(sizeof(struct vm_area));
@@ -259,14 +290,12 @@ long do_cfork(){
 		else{
 			new_head->vm_next = os_alloc(sizeof(struct vm_area));
 			new_head=new_head->vm_next;
-		
 		}
-
 	}
 //	printk("deep copy of VMA succeeded\n");
 
 
-
+skip:
      /*--------------------- Your code [end] ----------------*/
     
      /*
