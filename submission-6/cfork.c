@@ -11,7 +11,10 @@
 #define L3_SHIFT 21
 #define L4_SHIFT 12
 
-
+//The masks are to select 9 bits at a time for the page table walk
+//L1 selects the first 9 bits of PGD offset from the address , L2 the next so on...
+//Last 12 bits of address are used for addressing specific bytes inside the Page PFN
+//The shifts are set accordingly so that the bits are moved to appropriate locations
 
 
 
@@ -19,74 +22,128 @@
 /* #################################################*/
 
 static inline void invlpg(unsigned long addr) {
+	//This function invalidates the TLB (Translation Lookaside Buffer) entry associated with addr
+	//A small point to note , here , gemOS TLBs are NOT ASID compliant !!
     asm volatile("invlpg (%0)" ::"r" (addr) : "memory");
 }
 /**
  * cfork system call implemenations
  */
 
+
+//The Idea we had was to traverse the parent and the child one level at a time SIMULTANEOUSLY
+//Sir's idea was rather different , as he noted that the main two functionalities we'd be needing are a get_pte(ctx,addr)
+//and a map_physical_page(ctx , addr , pfn[for copy purposes] , flags[for alloc])
+//This is probably a way cleaner way to do things 
+
+//In our code we sweep through each of the allocated areas by the parent , calling create_tree_entry on each of the addresses
+//create_tree_entry walks through each step simultaneously for the parent and the child , stopping if the parent page does not
+//exist , allocating a new child page if it doesn't exist where it should (i.e. parent page has been allocated but not child page)
+//If the child page already exists , we just continue stepping through , and this process continues until we reach the final level
+//where we point the child PTE to the parent PTE so that they point to the same physical page.
+//We also change the write permissions to both of them to be zero (this will be relevant later , we had made a mistake here)
+//so that we can generate a CoW fault anytime someone tries to write.
+
 int create_tree_entry(struct exec_context* ctx, struct exec_context* new_ctx, u64 curr){
+	
 	u64 *parent_base = (u64 *)osmap(ctx->pgd);
-	invlpg(curr);								 //	u64 parent_pte=*parent_base;
-	//shuddhata assumed
+	invlpg(curr);	
 	u64 *child_base = (u64 *)osmap(new_ctx->pgd);
+			
+			//parent_base is the virtual address of CR3 ka address
+			//i think the invlpg here is incorrect , but TLB flush will never really cause an error as such
+			//we'd prefer to invalidate the TLB entry only when we're changing the PFN , maybe not from the get go
+			//child_base is the virtual address of CR3 ka address
 
-
+/* ################################################# DEBUG PRINTS #################################################*/
 	//FIRST LEVEL
-//printk("CR3 Parent: %x, Child: %x\n", parent_base, child_base);
+	//printk("CR3 Parent: %x, Child: %x\n", parent_base, child_base);
 	//we need to increase by multiples of 8
-	int level_1_offset=8*((curr&L1_MASK)>>L1_SHIFT);
 
-	u64 parent_entry=*(parent_base+level_1_offset);
-	//SIRF PFN DAALNA HAI, THE G in Aarush G. is for Godman
+/* ################################################# FATAL ERROR (1) #################################################*/
+	
+	//CORRECTED : 
+		int level_1_offset=((curr&L1_MASK)>>L1_SHIFT);
+		u64 parent_entry=*(parent_base+level_1_offset);
+	//INCORRECT :
+		//int level_1_offset=8*((curr&L1_MASK)>>L1_SHIFT);
+		//u64 parent_entry=*(parent_base+level_1_offset);
+	
+	//This is to calculate the level 1 offset value and the entry
+	//we DO NOT need to shift by multiples of 8 , as when we cast it , it is automatically treated
+	//as a u64 pointer !!
+	//the dereference gives us the value stored at the L1 location , of the form L2_PFN,FLAGS
+	
+	
 	//parent page itself didn't exist, woh lazy allocation bs, so aage badhne ki hi zarurat nahi
-	if(*(child_base+level_1_offset)%2==0&&(parent_entry%2!=0)){//check this
-					      //this signifies if the page exists or not
-		*(child_base+level_1_offset)=(os_pfn_alloc(OS_PT_REG)<<12)+(0xFFF&parent_entry);
-		//assuming this will deal with the present bit and all
-		//and increase ref_count
-	}
-	else{
-		return 0;
-	}
+/* ################################################# FATAL ERROR (1) #################################################*/
+
+	//CORRECTED:
+		if((parent_entry%2==0)){
+			return 0;
+		}
+		if(*(child_base+level_1_offset)%2==0){
+			*(child_base+level_1_offset)=(os_pfn_alloc(OS_PT_REG)<<12)+(0xF9F&parent_entry);
+		}
+
+		//if the parent entry does not exist , return 0;
+		//otherwise , if the child doesn't exist , allocate page using parent flags
+		//The mask here is F9F (1111-1001-1111) so as to not copy Dirty Bit and Accessed Bits 
+	
+	//INCORRECT:
+		// if(*(child_base+level_1_offset)%2==0&&(parent_entry%2!=0)){//check this
+		// 				      //this signifies if the page exists or not
+		// 	*(child_base+level_1_offset)=(os_pfn_alloc(OS_PT_REG)<<12)+(0xFFF&parent_entry);
+		// 	//assuming this will deal with the present bit and all
+		// 	//and increase ref_count
+		// }
+		// else{
+		// 	return 0;
+		// }
+
+	//That was incorrect because we made a mistake in the condition checking
+	//if the child page existed , we were enetering into the else part , and instead of continuing forward
+	//the else part would just kill the function , leading to all sorts of skulduggery
 
 	parent_base=(u64 *)osmap((parent_entry>>12));
 	u64 child_entry=*(child_base+level_1_offset);
 	child_base=(u64 *)osmap((child_entry>>12));
 
-//	parent_base = (u64 *)osmap(*((parent_base>>12)<<12+level_1_offset));
-//	child_base = (u64 *)osmap(*((child_base>>12)<<12+level_1_offset));
+	//These are the traverse step
+	//For the next level , we're setting the base to the virtual address corresponding to the 
+	//entry in the L1 level
 
-//	printk("PGD_T Parent: %x, Child: %x\n", parent_base, child_base);
+/* ################################################# DEBUG PRINTS #################################################*/
+		//	parent_base = (u64 *)osmap(*((parent_base>>12)<<12+level_1_offset));
+		//	child_base = (u64 *)osmap(*((child_base>>12)<<12+level_1_offset));
+		//	printk("PGD_T Parent: %x, Child: %x\n", parent_base, child_base);
+	
 	//SECOND LEVEL
-	int level_2_offset=8*((curr&L2_MASK)>>L2_SHIFT);
+	int level_2_offset=((curr&L2_MASK)>>L2_SHIFT); 
 	parent_entry=*(parent_base+level_2_offset);
 
-	if(*(child_base+level_2_offset)%2==0&&(parent_entry%2!=0)){
-		*(child_base+level_2_offset)=(os_pfn_alloc(OS_PT_REG)<<12)+(0xFFF&parent_entry);
-	}
-	else{
-		return 0;
-	}
-
+	if((parent_entry%2==0)){
+			return 0;
+		}
+		if(*(child_base+level_2_offset)%2==0){
+			*(child_base+level_2_offset)=(os_pfn_alloc(OS_PT_REG)<<12)+(0xF9F&parent_entry);
+		}
+	
 	parent_base=(u64 *)osmap((parent_entry>>12));
 	child_entry=*(child_base+level_2_offset);
 	child_base=(u64 *)osmap((child_entry>>12));
-
-
 	
 	//THIRD LEVEL
-//	printk("PUD Parent: %x, Child: %x\n", parent_base, child_base);
-	int level_3_offset=8*((curr&L3_MASK)>>L3_SHIFT);
+	int level_3_offset=((curr&L3_MASK)>>L3_SHIFT);
 	parent_entry=*(parent_base+level_3_offset);
 
-	if(*(child_base+level_3_offset)%2==0&&(parent_entry%2!=0)){
-		*(child_base+level_3_offset)=(os_pfn_alloc(OS_PT_REG)<<12)+(0xFFF&parent_entry);
-	}
-	else{
-		return 0;
-	}
-
+	if((parent_entry%2==0)){
+			return 0;
+		}
+		if(*(child_base+level_3_offset)%2==0){
+			*(child_base+level_3_offset)=(os_pfn_alloc(OS_PT_REG)<<12)+(0xF9F&parent_entry);
+		}
+	
 	parent_base=(u64 *)osmap((parent_entry>>12));
 	child_entry=*(child_base+level_3_offset);
 	child_base=(u64 *)osmap((child_entry>>12));
