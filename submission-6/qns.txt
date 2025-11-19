@@ -1,0 +1,34 @@
+Part1
+-----
+
+Q1. When creating a thread, which registers are required to be modified and why?
+A1. We need to modify entry_rip(rip needs to be set to that function of critical section), entry_rsp(each thread has its own stack, which is in the heap memory*CURSED*), rbp(same rsp, kyuki stack khaali hai) and rdi(and any arguments to that funcy func).
+
+Q2. When do the stack areas of threads get deallocated? Can the main process access the thread stack variables after they exited?
+
+A2. Yes, since its all in the heap of the moment, you never deallocate it, and hence can also be accessed, unless the process itself dies, then every bit of memory used is cleaned up.
+
+Q3. In testcase5.c, which process/thread calls exit system call and how do you handle it?    
+
+A3.In testcase5.c the parent process is calling the exit system call once it calls return 0; because the thread runs into an infinite while loop , which is only stopped when the main process exits and calls cleanup_all_threads. 
+
+
+Part 2
+------
+
+Q1. In testcase1.c, which pthread functionality is implemented and how?
+A1. So we're basically making a wait type functionality for different threads. For n threads you initialise the value to -n+1 and at the end of each thread include sem_post. And only when after n posts, the value is one, the parent who calls sem_wait, is finally let free.
+
+Q2. In testcase4.c, the output will be same irrespective of the scheduling order? True/False with justification.
+
+A2. 
+
+Q3. In testcase5.c, the output will be same if we remove the sleep in line #50? True/False with justification.
+
+
+Part 3
+------
+Q1. In testcase1.c, explain the number of expected CoW faults?
+
+
+Q2. Is TLB flush necessary for working of CoW fork? How and When?
