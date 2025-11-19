@@ -84,6 +84,7 @@ int create_tree_entry(struct exec_context* ctx, struct exec_context* new_ctx, u6
 		}
 		if(*(child_base+level_1_offset)%2==0){
 			*(child_base+level_1_offset)=(os_pfn_alloc(OS_PT_REG)<<12)+(0xF9F&parent_entry);
+			bzero(*(child_base+level_1_offset));
 		}
 
 		//if the parent entry does not exist , return 0;
@@ -127,6 +128,7 @@ int create_tree_entry(struct exec_context* ctx, struct exec_context* new_ctx, u6
 		}
 		if(*(child_base+level_2_offset)%2==0){
 			*(child_base+level_2_offset)=(os_pfn_alloc(OS_PT_REG)<<12)+(0xF9F&parent_entry);
+			bzero(*(child_base+level_2_offset));
 		}
 	
 	parent_base=(u64 *)osmap((parent_entry>>12));
@@ -142,6 +144,7 @@ int create_tree_entry(struct exec_context* ctx, struct exec_context* new_ctx, u6
 		}
 		if(*(child_base+level_3_offset)%2==0){
 			*(child_base+level_3_offset)=(os_pfn_alloc(OS_PT_REG)<<12)+(0xF9F&parent_entry);
+			bzero(*(child_base+level_3_offset));
 		}
 	
 	parent_base=(u64 *)osmap((parent_entry>>12));
@@ -168,7 +171,7 @@ int create_tree_entry(struct exec_context* ctx, struct exec_context* new_ctx, u6
 		//CORRECTED:
 			*parent_entry_pointer=*parent_entry_pointer&(0xFFFFFFFFFFFFFFF7);
 		//INCORRECT:
-			*parent_entry_pointer=*parent_entry_pointer&(0xFFFFFFFFFFFFFFFB);//xor it and turn the first bit 0
+			//*parent_entry_pointer=*parent_entry_pointer&(0xFFFFFFFFFFFFFFFB);//xor it and turn the first bit 0
 			//this was the wrong mask you doofus !!!!
 
 		//pointing the child entry to the parent entry (physical)
@@ -254,10 +257,11 @@ long do_cfork(){
 	struct vm_area* head=ctx->vm_area;
 	
 /* ################################################# FATAL ERROR (5) #################################################*/
-	if(head == NULL){
-		new_ctx->vm_area = NULL;
-		goto skip;
-	}
+	//CORRECTED: add this if statement 
+		if(head == NULL){
+			new_ctx->vm_area = NULL;
+			goto skip;
+		}
 	//we'd forgot to check if head = NULL 
 
 	//traverse and create tree entries in the child
@@ -326,46 +330,60 @@ long handle_cow_fault(struct exec_context *current, u64 vaddr, int access_flags)
 	u64 *parent_base = (u64 *)osmap(current->pgd);
 	u64 curr=vaddr;
 	//FIRST LEVEL
-	int level_1_offset=8*((curr&L1_MASK)>>L1_SHIFT);
+	int level_1_offset=((curr&L1_MASK)>>L1_SHIFT);
 	u64 parent_entry=*(parent_base+level_1_offset);
-
 	parent_base = (u64 *)osmap((parent_entry>>12));
 	//SECOND LEVEL
-//	printk("level 1 succeeded\n");
-	int level_2_offset=8*((curr&L2_MASK)>>L2_SHIFT);
+	int level_2_offset=((curr&L2_MASK)>>L2_SHIFT);
 	parent_entry=*(parent_base+level_2_offset);
-
-
 	parent_base = (u64 *)osmap((parent_entry>>12));
-//	printk("level 2 succeeded\n");
 	//THIRD LEVEL
-	int level_3_offset=8*((curr&L3_MASK)>>L3_SHIFT);
+	int level_3_offset=((curr&L3_MASK)>>L3_SHIFT);
 	parent_entry=*(parent_base+level_3_offset);
-
 	parent_base = (u64 *)osmap((parent_entry>>12));
-
-//	printk("level 3 succeeded\n");
 	//FOURTH LEVEL
-	int level_4_offset=8*((curr&L4_MASK)>>L4_SHIFT);
+	int level_4_offset=((curr&L4_MASK)>>L4_SHIFT);
 	u64* parent_entry_pointer=parent_base+level_4_offset;
 
 //	parent_base = (u64 *)osmap((parent_entry>>12)<<12);
 
+	//bzero
 
 //	printk("level 4 \n");
 //	*parent_base = *(parent_base+level_4_offset);
-	if(access_flags&2>0){//assuming read to hoga hi, we just check W in xWr
+	if(access_flags & PROT_READ){
+	//probably better permission checking can be done
+	//assuming read to hoga hi, we just check W in xWr
 	//right now, agar fault to naya page directly, not freeing, and don;t care about wastage	
-		u64 old_entry=*(parent_entry_pointer);
+/* ################################################# FATAL ERROR (6) #################################################*/
+	//CORRECTED:
+		s8 refc = get_pfn((old_entry>>12));
+		if(refc == 2){
+			//last referrer , don't dealloc and don't make a new page
+			//have to go through get_pfn gymnastics as put_pfn throws an error if 0 refcount
+			pass;
+		}
+		else{
+			put_pfn((old_entry>>12));
+			*(parent_entry_pointer)=(os_pfn_alloc(USER_REG)<<12)+(old_entry&0xFFF);
+			bzero(*(parent_entry_pointer)); //good practise to fill the area with zeroes
+			*parent_entry_pointer=(*(parent_entry_pointer)|8);
+			parent_entry=*parent_entry_pointer;
+			u64* old_base = (u64 *)osmap((old_entry>>12));
+			u64* new_base = (u64 *)osmap((parent_entry>>12));
+			memcpy(new_base,old_base,4096);
+		}
 		put_pfn((old_entry>>12));
-		*(parent_entry_pointer)=(os_pfn_alloc(USER_REG)<<12)+(old_entry&0xFFF);
-		*parent_entry_pointer=(*(parent_entry_pointer)|8);
-		parent_entry=*parent_entry_pointer;
 		
-		u64* old_base = (u64 *)osmap((old_entry>>12));
-		u64* new_base = (u64 *)osmap((parent_entry>>12));
-		
-		memcpy(new_base,old_base,4096);
+	//INCORRECT:
+		// u64 old_entry=*(parent_entry_pointer);
+		// put_pfn((old_entry>>12));
+		// *(parent_entry_pointer)=(os_pfn_alloc(USER_REG)<<12)+(old_entry&0xFFF);
+		// *parent_entry_pointer=(*(parent_entry_pointer)|8);
+		// parent_entry=*parent_entry_pointer;
+		// u64* old_base = (u64 *)osmap((old_entry>>12));
+		// u64* new_base = (u64 *)osmap((parent_entry>>12));
+		// memcpy(new_base,old_base,4096);
 //		printk("oldbase %x newbase %x parent entry %x old entrry %x \n",old_base,new_base,parent_entry,old_entry);
 		return 1;
 	}
